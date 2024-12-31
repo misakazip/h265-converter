@@ -30,21 +30,25 @@ MAX_JOBS=4
 INPUT_DIR="./videos"
 OUTPUT_DIR="./output"
 CRF=28
+PRESET="medium"
+VERBOSE=false
 
 # Function to display help message
 usage() {
     printf "Usage: %s [options] [input_directory]\n" "$0"
     printf "\nOptions:\n"
-    printf "  -h               Display this help message\n"
-    printf "  -j <jobs>        Maximum number of concurrent ffmpeg jobs (default: 4)\n"
-    printf "  -o <output_dir>  Output directory (default: ./output)\n"
-    printf "  --crf <crf>      CRF value for ffmpeg (default: 28)\n"
-    printf "  input_directory  Directory containing videos to convert (default: ./videos)\n"
+    printf "  -h, --help               Display this help message\n"
+    printf "  -j, --jobs <jobs>        Maximum number of concurrent ffmpeg jobs (default: 4)\n"
+    printf "  -o, --output <output_dir>  Output directory (default: ./output)\n"
+    printf "  -c, --crf <crf>          CRF value for ffmpeg (default: 28)\n"
+    printf "  -p, --preset <preset>    Preset value for ffmpeg (default: medium)\n"
+    printf "  -v, --verbose            Enable verbose mode\n"
+    printf "  input_directory          Directory containing videos to convert (default: ./videos)\n"
     exit 0
 }
 
 # Parse command line options
-while getopts ":h:j:o:-:" opt; do
+while getopts ":h:j:o:c:p:v-:" opt; do
     case ${opt} in
         h )
             usage
@@ -60,8 +64,37 @@ while getopts ":h:j:o:-:" opt; do
         o )
             OUTPUT_DIR=$OPTARG
             ;;
+        c )
+            if [[ $OPTARG =~ ^[0-9]+$ ]]; then
+                CRF=$OPTARG
+            else
+                printf "Invalid value for -c. Must be an integer.\n"
+                exit 1
+            fi
+            ;;
+        p )
+            PRESET=$OPTARG
+            ;;
+        v )
+            VERBOSE=true
+            ;;
         - )
             case "${OPTARG}" in
+                help)
+                    usage
+                    ;;
+                jobs)
+                    val="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    if [[ $val =~ ^[1-9][0-9]*$ ]]; then
+                        MAX_JOBS=$val
+                    else
+                        printf "Invalid value for --jobs. Must be a positive integer.\n"
+                        exit 1
+                    fi
+                    ;;
+                output)
+                    OUTPUT_DIR="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    ;;
                 crf)
                     val="${!OPTIND}"; OPTIND=$((OPTIND + 1))
                     if [[ $val =~ ^[0-9]+$ ]]; then
@@ -70,6 +103,12 @@ while getopts ":h:j:o:-:" opt; do
                         printf "Invalid value for --crf. Must be an integer.\n"
                         exit 1
                     fi
+                    ;;
+                preset)
+                    PRESET="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    ;;
+                verbose)
+                    VERBOSE=true
                     ;;
                 *)
                     usage
@@ -88,6 +127,11 @@ if [ -n "$1" ]; then
     INPUT_DIR="$1"
 fi
 
+# Enable verbose mode if specified
+if $VERBOSE; then
+    set -x
+fi
+
 # Check if ffmpeg is installed
 if ! command -v ffmpeg &> /dev/null; then
     printf "ffmpeg could not be found, please install it first.\n"
@@ -102,7 +146,10 @@ if [ ! -d "$INPUT_DIR" ]; then
 fi
 
 # Create output directory if it doesn't exist
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR" || {
+    printf "Failed to create output directory %s.\n" "$OUTPUT_DIR"
+    exit 1
+}
 
 # Prevent looping if no files are found
 shopt -s nullglob
@@ -110,20 +157,23 @@ shopt -s nullglob
 # Function to handle script termination
 cleanup() {
     printf "Cleaning up...\n"
-    wait
+    jobs -p | xargs -r wait
     exit 1
 }
 
 # Trap signals to handle script termination and normal exit
-trap 'cleanup' INT TERM EXIT
+trap 'cleanup' INT TERM
+trap 'exit 0' EXIT
 
 # Recursively find all video files
-mapfile -t files < <(find "$INPUT_DIR" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" \))
+mapfile -t files < <(find "$INPUT_DIR" -type f \( -iname "*.mp4" -o -iname "*.mov" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.flv" \) ! -name ".*")
 
 if [ ${#files[@]} -eq 0 ]; then
     printf "No files found in the input directory.\n"
     exit 0
 fi
+
+job_count=0
 
 # Iterate over each video file in the input directory
 for input_file in "${files[@]}"; do
@@ -136,21 +186,21 @@ for input_file in "${files[@]}"; do
     fi
     
     {
-        if ! ffmpeg -i "$input_file" -c:v libx265 -crf "$CRF" -preset medium -c:a copy -tag:v hvc1 "$output_file"; then
+        if ! ffmpeg -i "$input_file" -c:v libx265 -crf "$CRF" -preset "$PRESET" -c:a copy -tag:v hvc1 "$output_file"; then
             printf "Error converting %s\n" "$input_file" >&2
         else
             printf "Converted %s to %s\n" "$input_file" "$output_file"
         fi
     } &
     
-    current_jobs=$(jobs -p | wc -l)
-    if [ "$current_jobs" -ge "$MAX_JOBS" ]; then
+    ((job_count++))
+    if [ "$job_count" -ge "$MAX_JOBS" ]; then
         wait -n || true
+        ((job_count--))
     fi
 
 done
 
 wait
-trap - EXIT
 
 printf "All videos have been converted and saved in the %s directory.\n" "$OUTPUT_DIR"
