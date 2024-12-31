@@ -52,7 +52,7 @@ usage() {
 # Function to update the script
 update_script() {
     local script_url="https://raw.githubusercontent.com/misakazip/h265-converter/main/convert.sh"
-    curl -o "$0" "$script_url" && chmod +x "$0"
+    curl -o "$0" -sSL "$script_url" && chmod +x "$0"
     printf "The script has been updated to the latest(%s) version.\n" $VERSION
     exit 0
 }
