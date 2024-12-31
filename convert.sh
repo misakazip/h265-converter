@@ -54,8 +54,9 @@ while getopts ":h:j:o:c:p:v-:" opt; do
             usage
             ;;
         j )
-            if [[ $OPTARG =~ ^[1-9][0-9]*$ ]]; then
-                MAX_JOBS=$OPTARG
+            val=$OPTARG
+            if [[ $val =~ ^[1-9][0-9]*$ ]]; then
+                MAX_JOBS=$val
             else
                 printf "Invalid value for -j. Must be a positive integer.\n"
                 exit 1
@@ -65,8 +66,9 @@ while getopts ":h:j:o:c:p:v-:" opt; do
             OUTPUT_DIR=$OPTARG
             ;;
         c )
-            if [[ $OPTARG =~ ^[0-9]+$ ]]; then
-                CRF=$OPTARG
+            val=$OPTARG
+            if [[ $val =~ ^[0-9]+$ ]]; then
+                CRF=$val
             else
                 printf "Invalid value for -c. Must be an integer.\n"
                 exit 1
