@@ -32,6 +32,7 @@ OUTPUT_DIR="./output"
 CRF=28
 PRESET="medium"
 VERBOSE=false
+VERSION="1.0-beta"
 
 # Function to display help message
 usage() {
@@ -43,7 +44,16 @@ usage() {
     printf "  -c, --crf <crf>          CRF value for ffmpeg (default: 28)\n"
     printf "  -p, --preset <preset>    Preset value for ffmpeg (default: medium)\n"
     printf "  -v, --verbose            Enable verbose mode\n"
+    printf "  --update                 Update this script to the latest version from the repository\n"
     printf "  input_directory          Directory containing videos to convert (default: ./videos)\n"
+    exit 0
+}
+
+# Function to update the script
+update_script() {
+    local script_url="https://raw.githubusercontent.com/misakazip/h265-converter/main/convert.sh"
+    curl -o "$0" "$script_url" && chmod +x "$0"
+    printf "The script has been updated to the latest(%s) version.\n" $VERSION
     exit 0
 }
 
@@ -111,6 +121,9 @@ while getopts ":h:j:o:c:p:v-:" opt; do
                     ;;
                 verbose)
                     VERBOSE=true
+                    ;;
+                update)
+                    update_script
                     ;;
                 *)
                     usage
