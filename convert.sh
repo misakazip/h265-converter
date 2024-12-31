@@ -28,6 +28,7 @@
 # Default values
 MAX_JOBS=4
 INPUT_DIR="./videos"
+OUTPUT_DIR="./output"
 
 # Function to display help message
 usage() {
@@ -35,25 +36,34 @@ usage() {
     printf "\nOptions:\n"
     printf "  -h               Display this help message\n"
     printf "  -j <jobs>        Maximum number of concurrent ffmpeg jobs (default: 4)\n"
+    printf "  -o <output_dir>  Output directory (default: ./output)\n"
     printf "  input_directory  Directory containing videos to convert (default: ./videos)\n"
     exit 0
 }
 
 # Parse command line options
-while getopts ":hj:" opt; do
+while getopts ":h:j:o:" opt; do
     case ${opt} in
         h )
             usage
             ;;
         j )
-            MAX_JOBS=$OPTARG
+            if [[ $OPTARG =~ ^[1-9][0-9]*$ ]]; then
+                MAX_JOBS=$OPTARG
+            else
+                printf "Invalid value for -j. Must be a positive integer.\n"
+                exit 1
+            fi
+            ;;
+        o )
+            OUTPUT_DIR=$OPTARG
             ;;
         * )
             usage
             ;;
     esac
 done
-shift $((OPTIND -1))
+shift $((OPTIND - 1))
 
 # Override input directory if provided
 if [ -n "$1" ]; then
@@ -61,8 +71,7 @@ if [ -n "$1" ]; then
 fi
 
 # Check if ffmpeg is installed
-if ! command -v ffmpeg &> /dev/null
-then
+if ! command -v ffmpeg &> /dev/null; then
     printf "ffmpeg could not be found, please install it first.\n"
     printf "Download link: https://www.ffmpeg.org/download.html\n"
     exit 1
@@ -75,7 +84,6 @@ if [ ! -d "$INPUT_DIR" ]; then
 fi
 
 # Create output directory if it doesn't exist
-OUTPUT_DIR="./output"
 mkdir -p "$OUTPUT_DIR"
 
 # Prevent looping if no files are found
