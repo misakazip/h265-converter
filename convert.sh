@@ -29,6 +29,7 @@
 MAX_JOBS=4
 INPUT_DIR="./videos"
 OUTPUT_DIR="./output"
+CRF=28
 
 # Function to display help message
 usage() {
@@ -37,12 +38,13 @@ usage() {
     printf "  -h               Display this help message\n"
     printf "  -j <jobs>        Maximum number of concurrent ffmpeg jobs (default: 4)\n"
     printf "  -o <output_dir>  Output directory (default: ./output)\n"
+    printf "  --crf <crf>      CRF value for ffmpeg (default: 28)\n"
     printf "  input_directory  Directory containing videos to convert (default: ./videos)\n"
     exit 0
 }
 
 # Parse command line options
-while getopts ":h:j:o:" opt; do
+while getopts ":h:j:o:-:" opt; do
     case ${opt} in
         h )
             usage
@@ -57,6 +59,22 @@ while getopts ":h:j:o:" opt; do
             ;;
         o )
             OUTPUT_DIR=$OPTARG
+            ;;
+        - )
+            case "${OPTARG}" in
+                crf)
+                    val="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    if [[ $val =~ ^[0-9]+$ ]]; then
+                        CRF=$val
+                    else
+                        printf "Invalid value for --crf. Must be an integer.\n"
+                        exit 1
+                    fi
+                    ;;
+                *)
+                    usage
+                    ;;
+            esac
             ;;
         * )
             usage
@@ -118,7 +136,7 @@ for input_file in "${files[@]}"; do
     fi
     
     {
-        if ! ffmpeg -i "$input_file" -c:v libx265 -crf 28 -preset medium -c:a copy -tag:v hvc1 "$output_file"; then
+        if ! ffmpeg -i "$input_file" -c:v libx265 -crf "$CRF" -preset medium -c:a copy -tag:v hvc1 "$output_file"; then
             printf "Error converting %s\n" "$input_file" >&2
         else
             printf "Converted %s to %s\n" "$input_file" "$output_file"
